@@ -1,0 +1,39 @@
+# MeMS.h (Memory Management System) README
+
+## Overview
+
+`mems.h` is a header file that defines the data structures and function signatures for the MeMS (Memory Management System) implementation. MeMS provides memory allocation, management, and deallocation features, allowing users to efficiently allocate and manage memory in their applications.
+
+This README provides an overview of `mems.h` and explains the purpose and working of each function defined in the header.
+
+## Functions
+
+### `void mems_init()`
+
+- **Purpose**: Initializes the MeMS system.
+- **Working**: This function sets up the initial data structures and prepares the MeMS system for memory management. It typically initializes the free list and other global variables needed for MeMS operation.
+
+### `void* mems_malloc(size_t size)`
+
+- **Purpose**: Allocates memory of the specified size.
+- **Working**: The `mems_malloc` function allocates memory by reusing a segment from the free list if a sufficiently large segment is available. If no suitable segment is found, it uses the `mmap` system call to allocate more memory on the heap and updates the free list accordingly. It returns a MeMS virtual address for the allocated memory.
+
+### `void mems_print_stats()`
+
+- **Purpose**: Prints statistics about the MeMS system.
+- **Working**: The `mems_print_stats` function prints information about the MeMS system's state. It includes details such as the number of used pages, unused memory, information about nodes in the main chain, and details about each segment in the sub-chain.
+
+### `void* mems_get(void* v_ptr)`
+
+- **Purpose**: Returns the MeMS physical address mapped to a MeMS virtual address.
+- **Working**: The `mems_get` function takes a MeMS virtual address as input and returns the corresponding MeMS physical address that is mapped to the given virtual address. It is used to retrieve the physical address associated with a virtual address.
+
+### `void mems_free(void* v_ptr)`
+
+- **Purpose**: Frees up memory pointed to by a virtual address.
+- **Working**: The `mems_free` function deallocates memory pointed to by a virtual address, marking it as free in the MeMS system. It may also add the freed memory back to the free list for future allocation.
+
+### `void mems_finish()`
+
+- **Purpose**: Cleans up and unmaps all allocated memory segments.
+- **Working**: The `mems_finish` function is called at the end of the MeMS system's usage. It unmaps all memory segments that were allocated during the MeMS session and performs any necessary cleanup operations.
