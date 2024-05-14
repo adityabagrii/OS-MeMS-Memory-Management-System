@@ -29,3 +29,7 @@ PAGE_SIZE= 4096 Bytes
 Starting MeMS Virtual Address= 1000
 
 ![Example Output](example_output.jpg)
+---
+##Contributions
+Aditya Bagri - 2022029
+Rahul Goel - 2022388
