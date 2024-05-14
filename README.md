@@ -30,6 +30,6 @@ Starting MeMS Virtual Address= 1000
 
 ![Example Output](example_output.jpg)
 ---
-##Contributions
+## Contributors
 Aditya Bagri - 2022029
 Rahul Goel - 2022388
