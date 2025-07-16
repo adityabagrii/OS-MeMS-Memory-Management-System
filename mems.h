@@ -23,6 +23,7 @@ macro to make the output of all system same and conduct a fair evaluation.
 #define HOLE 0
 #define A1000 1000
 
+// Sub chain node
 typedef struct Segment {
     size_t size;
     void* start_address;
@@ -43,7 +44,9 @@ typedef struct MainChainNode {
 }node ;
 
 struct MainChainNode *head;
+// number of node to track allocations of virtual addresses
 int number_of_nodes=0;
+// hardcoded mock virtual addresses
 int a1[]={1000,2000,3000,4000,4096,5096,6096,7096,8192,9192,10192,11192};
 
 /*
@@ -54,6 +57,8 @@ Initializes all the required parameters for the MeMS system. The main parameters
 Input Parameter: Nothing
 Returns: Nothing
 */
+
+// initialising the main chain to NULL
 void mems_init(){
     head=NULL;
     // head->subchain=NULL;
@@ -66,19 +71,26 @@ allocated memory using the munmap system call.
 Input Parameter: Nothing
 Returns: Nothing
 */
+// at the end of the script iterating over all the main chain nodes and their subchains to free the memory
 void mems_finish(){
+    // start from the head node
     node *currentNode = head;
     while (currentNode != NULL) {
+        // pick the starting node for the segment / sub chain
         seg* currentSegment = currentNode->sub_chain;
         seg *temp=currentSegment;
         while (currentSegment != NULL) {
             temp=currentSegment;
             currentSegment = currentSegment->next;
+            // pass the physical address and the size of the block to be unmapped
             munmap(temp->paddr,temp->size);
         }
+        // saving the pointer for the current node
         node* ntemp = currentNode;
+        // moving the curr node forward
         currentNode = currentNode->next;
-        // Optionally, you can also unmap the main chain nodes
+        
+        // Unmapping the main chain nodes
         munmap(ntemp->paadr, ntemp->size);
     }
 }
@@ -112,45 +124,63 @@ Returns: MeMS Virtual address (that is created by MeMS)
 
 // mems_malloc() implementation using mmap
 void* mems_malloc(size_t size) {
+    // if the main chain was empty that is we are allocating memory for the first time
     if(head==NULL)
     {
-    void * addr=mmap(NULL,PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    head=(node *)addr;
-    head->next=NULL;
-    head->prev=NULL;
-    head->paadr=addr;
-    head->mems_virtual_address=(void*)10;
-    head->size=PAGE_SIZE;
-    void* seg_addr=mmap(NULL,size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    seg * n1=(seg*)seg_addr;
-    head->sub_chain=n1;
-    n1->is_allocated=1;
-    n1->next=NULL;
-    n1->paddr=seg_addr;
-    n1->prev=head;
-    n1->size=size;
-    n1->start_address=(void *)a1[number_of_nodes];
-    number_of_nodes++;
-    return n1->start_address;
+        // creating a main chain node
+        // NULL to tell kernel to allocate any memory address available
+        // prot read and write allow read and write access to the addr
+        // -1 is for file descriptor marking that this address is not pointing to any file, and 0 is the pointer in that file
+        void * addr=mmap(NULL,PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+        // we get physical address
+        head=(node *)addr;
+        head->next=NULL;
+        head->prev=NULL;
+        head->paadr=addr;
+        head->mems_virtual_address=(void*)10;
+        head->size=PAGE_SIZE;
+
+        // creating a sub-chain node
+        void* seg_addr=mmap(NULL,size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+        seg * n1=(seg*)seg_addr;
+        head->sub_chain=n1;
+        n1->is_allocated=1;
+        n1->next=NULL;
+        n1->paddr=seg_addr;
+        n1->prev=head;
+        n1->size=size;
+        // putting the start address of the node as the mock nodes
+        n1->start_address=(void *)a1[number_of_nodes];
+        number_of_nodes++;
+        // returning the virtual address for the memory allocated to the process
+        return n1->start_address;
     }
+
+    // if main chain node already exists
     struct MainChainNode* currentNode = head;
+    // we find a segment to select
     struct Segment* selectedSegment = NULL;
 
     while (currentNode != NULL) {
         struct Segment* currentSegment = currentNode->sub_chain;
+        // track total size of all segments
         size_t atemp=0;
         while(currentSegment!=NULL)
-        {
+        {    
+            // the size of the curr segment must be greater than the size needed to be allocated
             if(!currentSegment->is_allocated && currentSegment->size>size)
             {
                 selectedSegment=currentSegment;
                 break;
             }
+            // updating the temp address
             atemp+=currentSegment->size;
             currentSegment=currentSegment->next;
         }
+        // checking if the total memory used and new requested size still fits within the current page or not
         if(atemp+size<=currentNode->size)
         {
+            // if yes we can add a sub-chain and allocate that memory to the process
             struct Segment* currentSegment = currentNode->sub_chain;
             while(currentSegment->next!=NULL)
             {
@@ -172,11 +202,14 @@ void* mems_malloc(size_t size) {
     }
     if (selectedSegment == NULL) {
         // No suitable segment found, allocate a new one using mmap
+        // we need to add a new page
+        // travering to the end of the linked list of main chain nodes
         node * temp11=head;
         while(temp11->next!=NULL)
         {
             temp11=temp11->next;
         }
+        // allocating memory to new main chain node
         void* mems_physical_address = mmap(NULL,PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
         if (mems_physical_address == MAP_FAILED) {
             perror("mmap");
@@ -201,6 +234,8 @@ void* mems_malloc(size_t size) {
         temp11->next=temp;
         return n1->start_address;
     } else {
+        // suitable memory segment found
+        // split it into two sub nodes hole and process
         void * addr1=mmap(NULL,selectedSegment->size-size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
         seg * s1 =(seg*)addr1;
         s1->is_allocated = 1;
@@ -293,24 +328,30 @@ Returns the MeMS physical address mapped to ptr ( ptr is MeMS virtual address).
 Parameter: MeMS Virtual address (that is created by MeMS)
 Returns: MeMS physical address mapped to the passed ptr (MeMS virtual address).
 */
+// function to get physical address given a virutal address
 void* mems_get(void* v_ptr) {
     node * temp=head;
     int i=1;
+    // iterate over the entire list of main chain nodes
     while(temp!=NULL)
     {
+        // iterate over sub chain nodes
         seg* stemp=temp->sub_chain;
         while(stemp->next!=NULL)
         {
+            // checking if the current segments virtual address matches the input virtual address
             if(stemp->start_address<v_ptr<=stemp->next->start_address)
             {
                 return stemp->paddr;
             }
             stemp=stemp->next;
         }
+        // if the final node and does not have a next node we match that if the virtual address falls within this page or not
         if(stemp->start_address<v_ptr<=4096*(i))
         {
             return stemp->paddr;
         }
+        // move to next page
         temp=temp->next;
     }
     return NULL;
@@ -324,19 +365,22 @@ Parameter: MeMS Virtual address (that is created by MeMS)
 Returns: nothing
 */
 void mems_free(void *v_ptr){
+    // start from the head of the main chain
     node* currentNode = head;
     while (currentNode != NULL) {
+        // travel through all the segments 
         seg* currentSegment = currentNode->sub_chain;
         while (currentSegment != NULL) {
+            // checking if current segment matches the address needed
             if (currentSegment->start_address == v_ptr) {
                 // Mark the segment as free
                 currentSegment->is_allocated = 0;
-                // Optionally, you can add this segment back to the free list
-                // Add your code here to add the segment back to the free list
+                // TBA - implement merging of adjacent free holes for reducing memory fragmentations
+                // once freed return to stop any further computation
                 return;
             }
             currentSegment = currentSegment->next;
         }
         currentNode = currentNode->next;
-}
+    }
 }
